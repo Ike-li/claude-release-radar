@@ -3,11 +3,11 @@
   "packages": {
     "@anthropic-ai/claude-code": {
       "stable": "2.1.212",
-      "latest": "2.1.220",
+      "latest": "2.1.219",
       "next": "2.1.220"
     },
     "@anthropic-ai/claude-agent-sdk": {
-      "latest": "0.3.220",
+      "latest": "0.3.201",
       "next": "0.3.220"
     }
   }
