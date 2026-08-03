@@ -1,0 +1,15 @@
+name: t2
+on:
+  schedule:
+    # 每天 01:17 UTC 跑一次。故意避开整点：schedule 在整点是全球高峰，GitHub 会延迟
+    # 数十分钟、极端情况直接丢弃这次触发。
+    # 上游发版节奏实测约 1–3 天一版（7/19→7/24 出了 5 个版本），每天一次足够。
+    - cron: '17 1 * * *'
+  # 手动触发，用来验收和补跑。注意：schedule 与 workflow_dispatch 都只认默认分支上的
+  # workflow 文件——这正是本监控要独立成仓库、而不是塞进被监控项目某个分支的原因。
+  workflow_dispatch:
+jobs:
+  t2:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi

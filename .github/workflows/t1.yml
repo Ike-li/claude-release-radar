@@ -1,0 +1,60 @@
+name: t1
+
+on:
+  workflow_dispatch:
+
+# 最小权限面：只要能开 issue + 提交 state.json。
+permissions:
+  contents: write
+  issues: write
+
+# 手动补跑撞上定时触发时，让先跑的跑完，不要两个 run 同时改 state.json 打架。
+concurrency:
+  group: radar
+  cancel-in-progress: false
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          # 无 cache：本仓库零 npm 依赖，没有 lockfile 可缓存。
+
+      - name: 自检（逻辑坏了要在发通知之前就知道）
+        run: node --test 'tests/*.test.mjs'
+
+      - name: 查上游 dist-tag
+        id: radar
+        run: node scripts/radar.js
+
+      # radar.js 已把正文写进 issue-body.md，标题走 GITHUB_OUTPUT。
+      # 每次发布开一个新 issue（事件流语义），不复用旧 issue：一封邮件 = 一次发布。
+      # 标题走 env 而不是直接把 ${{ }} 插进 run —— 插值发生在 shell 解析之前，
+      # 标题里的字符会被当命令解释。内容虽然来自 npm 的版本号，也不该给它这个机会。
+      - name: 开 issue
+        if: steps.radar.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: ${{ steps.radar.outputs.issue_title }}
+        run: gh issue create --title "$ISSUE_TITLE" --body-file issue-body.md
+
+      # state.json 既是"上次见到什么"的存储，也让 git history 本身成为一份可查的发布时间线。
+      # GITHUB_TOKEN 的 push 不会触发其他 workflow（GitHub 有意防循环），本文件也没有 on: push。
+      - name: 提交 state
+        env:
+          STATE_SUMMARY: ${{ steps.radar.outputs.state_summary }}
+        run: |
+          if git diff --quiet -- state.json; then
+            echo "state.json 无变化，跳过提交"
+            exit 0
+          fi
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add state.json
+          git commit -m "chore(state): ${STATE_SUMMARY:-记录上游版本}"
+          git push
